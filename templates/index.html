@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>年休計算機｜年次有給休暇の付与日数計算</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    margin: 0; background: #f4f6f8; color: #222; line-height: 1.6;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 40px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .lead { color: #555; font-size: 14px; margin: 0 0 20px; }
+  .card { background: #fff; border: 1px solid #dde3e8; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  label { display: block; font-size: 14px; font-weight: bold; margin: 12px 0 4px; }
+  input[type=date], input[type=number], select {
+    width: 100%; max-width: 320px; padding: 8px 10px; font-size: 16px;
+    border: 1px solid #c5ced6; border-radius: 6px; background: #fff;
+  }
+  button {
+    margin-top: 16px; padding: 10px 28px; font-size: 16px; font-weight: bold;
+    background: #1f6f9f; color: #fff; border: none; border-radius: 6px; cursor: pointer;
+  }
+  button:hover { background: #185a82; }
+  .error { color: #c0392b; font-weight: bold; margin-top: 10px; }
+  .hint { color: #666; font-size: 12.5px; margin-top: 4px; }
+  .next-grant {
+    background: #e8f3f9; border: 1px solid #cfe3ee; border-radius: 8px;
+    padding: 14px 16px; font-size: 15px; margin-bottom: 14px;
+  }
+  .next-grant .days { font-size: 26px; font-weight: bold; color: #1f6f9f; }
+  table { border-collapse: collapse; width: 100%; background: #fff; font-size: 14px; }
+  th, td { border: 1px solid #dde3e8; padding: 7px 10px; text-align: left; }
+  th { background: #eef2f5; }
+  tr.next-row { background: #e8f3f9; font-weight: bold; }
+  .notes { font-size: 12.5px; color: #555; margin-top: 10px; }
+  .notes li { margin-bottom: 4px; }
+  details { margin-top: 14px; font-size: 13px; }
+  summary { cursor: pointer; color: #1f6f9f; }
+  .draft-warn {
+    background: #fff8e1; border: 1px solid #f0e0a0; color: #7a5c00;
+    border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px;
+  }
+  .disclaimer {
+    font-size: 12.5px; color: #666; border-top: 1px solid #dde3e8;
+    margin-top: 24px; padding-top: 12px;
+  }
+  .badge { display: inline-block; background: #eef2f5; border-radius: 10px; padding: 1px 10px; font-size: 12px; color: #444; }
+</style>
+</head>
+<body>
+<main>
+  <h1>年休計算機</h1>
+  <p class="lead">入社日と週の働き方から、年次有給休暇の付与日と付与日数を計算します。入力内容は保存されません。</p>
+
+  {% if rules.status != 'verified' %}
+  <div class="draft-warn">⚠ このツールの法定テーブルは<strong>下書き（専門家の確認前）</strong>です。結果を実務に使わないでください。</div>
+  {% endif %}
+
+  <div class="card">
+    <form method="get" action="/">
+      <label for="hire_date">入社日</label>
+      <input type="date" id="hire_date" name="hire_date" value="{{ hire_date_raw }}">
+
+      <label for="category">週の所定労働日数</label>
+      <select id="category" name="category">
+        <option value="" {% if not selected_category %}selected{% endif %}>選択してください</option>
+        {% for key, cat in rules.categories.items() %}
+        <option value="{{ key }}" {% if selected_category == key %}selected{% endif %}>{{ cat.label }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">週4日以下でも、週の労働時間が30時間以上の場合は「週5日以上（または週30時間以上）」を選んでください。</div>
+
+      <label for="method">付与の方式</label>
+      <select id="method" name="method" onchange="toggleBaseDate()">
+        <option value="legal" {% if selected_method != 'base_date' %}selected{% endif %}>法定原則（入社日ごと）</option>
+        <option value="base_date" {% if selected_method == 'base_date' %}selected{% endif %}>基準日方式（一斉付与）</option>
+      </select>
+
+      <div id="base-date-fields" style="display:{{ 'block' if selected_method == 'base_date' else 'none' }};">
+        <label for="base_month">基準日（月）</label>
+        <input type="number" id="base_month" name="base_month" min="1" max="12" placeholder="例: 4" value="{{ base_month_raw }}">
+        <label for="base_day">基準日（日）</label>
+        <input type="number" id="base_day" name="base_day" min="1" max="31" placeholder="例: 1" value="{{ base_day_raw }}">
+        <div class="hint">会社が全社員の付与日を統一している場合の基準日です（例: 4月1日）。</div>
+      </div>
+
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      <button type="submit">計算する</button>
+    </form>
+  </div>
+
+  <script>
+    function toggleBaseDate() {
+      var sel = document.getElementById('method');
+      var box = document.getElementById('base-date-fields');
+      box.style.display = (sel.value === 'base_date') ? 'block' : 'none';
+    }
+  </script>
+
+  {% if result %}
+  <div class="card">
+    <div class="next-grant">
+      次回の付与: <strong>{{ result.next.grant_date.isoformat() }}</strong> に
+      <span class="days">{{ result.next.days }}日</span>
+      <span class="badge">勤続{{ result.next.service_label }}</span>
+      {% if result.is_proportional %}<span class="badge">比例付与</span>{% endif %}
+    </div>
+
+    {% if result.is_proportional %}
+    <p class="hint">週30時間未満・週4日以下の働き方のため、<strong>比例付与</strong>（フルタイムより少ない日数）で計算しています。</p>
+    {% endif %}
+
+    <table>
+      <thead>
+        <tr>
+          <th>付与日</th><th>勤続年数</th><th>付与日数</th>
+          {% if result.is_base_date %}<th>備考</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in result.grants %}
+        <tr {% if g.grant_date == result.next.grant_date %}class="next-row"{% endif %}>
+          <td>{{ g.grant_date.isoformat() }}</td>
+          <td>{{ g.service_label }}</td>
+          <td>{{ g.days }}日{% if g.is_final_step %}（以後毎年同じ）{% endif %}</td>
+          {% if result.is_base_date %}
+          <td>{% if g.legal_date != g.grant_date %}法定 {{ g.legal_date.isoformat() }} を前倒し{% endif %}</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if result.is_base_date %}
+    <p class="hint">本ツールの基準日方式は「初回のみ法定（入社6か月後）・2回目以降は基準日に統一（勤続期間は切り上げ）」という代表的な方式です。会社により設計は異なります（入社時付与など）。就業規則をご確認ください。</p>
+    {% endif %}
+
+    <ul class="notes">
+      <li>付与には<strong>出勤率8割以上</strong>の要件があります（本ツールでは判定していません）。</li>
+      <li>未使用分の繰越は最大2年で時効消滅します。</li>
+      {% if not result.is_base_date %}
+      <li>会社が付与日を統一している（基準日方式）場合は、実際の付与日・日数が異なります。</li>
+      {% endif %}
+    </ul>
+
+    <details>
+      <summary>計算の根拠（法定テーブルを表示）</summary>
+      <p>出典: {{ rules.source }}
+        {% if rules.status == 'verified' %}（{{ rules.verified_at }} 確認）
+        {% else %}（<strong>確認前の下書き</strong>）{% endif %}</p>
+      <table>
+        <thead>
+          <tr><th>働き方</th>{% for lbl in rules.service_labels %}<th>{{ lbl }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for key, cat in rules.categories.items() %}
+          <tr><td>{{ cat.label }}</td>{% for d in cat.days_by_service %}<td>{{ d }}日</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  </div>
+  {% endif %}
+
+  <div class="disclaimer">
+    本ツールは法定の原則（入社日起算）による目安を表示するものです。実際の付与は就業規則・
+    出勤率・基準日方式の採用などにより異なる場合があります。正確な日数は就業規則をご確認のうえ、
+    必要に応じて社会保険労務士等の専門家にご相談ください。本ツールの利用により生じた
+    いかなる結果についても、作者は責任を負いません。入力されたデータは保存されません。
+  </div>
+</main>
+</body>
+</html>

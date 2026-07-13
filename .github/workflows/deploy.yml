@@ -1,0 +1,71 @@
+name: PythonAnywhere へ自動デプロイ
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    # 手動実行時は全ファイルを同期する(取りこぼしの復旧用)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 変更ファイルを PythonAnywhere へアップロード
+        env:
+          PA_TOKEN: ${{ secrets.KYUKACALC_PA_API_TOKEN }}
+          PA_USER: kyukacalc
+          PA_DIR: /home/kyukacalc/kyuka_calc
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          # 手動実行・初回push・差分が取れない場合は全追跡ファイルを同期する。
+          # push時は「そのpushに含まれる全コミット」の差分を対象にする
+          # (HEAD~1 だと複数コミットの一括pushで途中のコミットが漏れるため)。
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+             || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED=$(git ls-files)
+          else
+            CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" 2>/dev/null) \
+              || CHANGED=$(git ls-files)
+          fi
+          CHANGED=$(echo "$CHANGED" \
+            | grep -v '^\.github/' \
+            | grep -v '^venv/' \
+            | grep -v '\.db$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "変更ファイルなし。スキップします。"
+            exit 0
+          fi
+          echo "アップロード対象ファイル:"
+          echo "$CHANGED"
+          for FILE in $CHANGED; do
+            if [ -f "$FILE" ]; then
+              echo "Uploading: $FILE"
+              # レート制限(429等)に備えてリトライし、ファイル間に間隔を置く
+              curl -sf --retry 5 --retry-delay 15 --retry-all-errors -X POST \
+                -H "Authorization: Token $PA_TOKEN" \
+                -F "content=@$FILE" \
+                "https://www.pythonanywhere.com/api/v0/user/$PA_USER/files/path$PA_DIR/$FILE"
+              sleep 2
+            else
+              echo "削除済みのためスキップ: $FILE"
+            fi
+          done
+
+      - name: Web アプリを Reload
+        env:
+          PA_TOKEN: ${{ secrets.KYUKACALC_PA_API_TOKEN }}
+          PA_USER: kyukacalc
+          PA_DOMAIN: kyukacalc.pythonanywhere.com
+        run: |
+          RESULT=$(curl -sf -X POST \
+            -H "Authorization: Token $PA_TOKEN" \
+            "https://www.pythonanywhere.com/api/v0/user/$PA_USER/webapps/$PA_DOMAIN/reload/")
+          echo "Reload: $RESULT"

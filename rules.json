@@ -1,0 +1,46 @@
+{
+  "_readme": [
+    "年次有給休暇の法定付与日数テーブル。数値はコードに書かず、このファイルで管理する。",
+    "status が 'draft' の間、画面に「下書き・確認前」の警告が表示される。",
+    "労務専門家（ユーザー本人）が条文・公式資料と1マスずつ突き合わせて確認したら、",
+    "verified_at に確認日（YYYY-MM-DD）を入れ、status を 'verified' に変える。"
+  ],
+  "source": "労働基準法39条・労働基準法施行規則24条の3",
+  "source_url": "https://laws.e-gov.go.jp/law/322AC0000000049",
+  "status": "verified",
+  "verified_at": "2026-07-13",
+  "categories": {
+    "full": {
+      "label": "週5日以上（または週30時間以上）",
+      "proportional": false,
+      "days_by_service": [10, 11, 12, 14, 16, 18, 20]
+    },
+    "week4": {
+      "label": "週4日（年間169〜216日）",
+      "proportional": true,
+      "days_by_service": [7, 8, 9, 10, 12, 13, 15]
+    },
+    "week3": {
+      "label": "週3日（年間121〜168日）",
+      "proportional": true,
+      "days_by_service": [5, 6, 6, 8, 9, 10, 11]
+    },
+    "week2": {
+      "label": "週2日（年間73〜120日）",
+      "proportional": true,
+      "days_by_service": [3, 4, 4, 5, 6, 6, 7]
+    },
+    "week1": {
+      "label": "週1日（年間48〜72日）",
+      "proportional": true,
+      "days_by_service": [1, 2, 2, 2, 3, 3, 3]
+    }
+  },
+  "service_labels": ["6か月", "1年6か月", "2年6か月", "3年6か月", "4年6か月", "5年6か月", "6年6か月以上"],
+  "notes": [
+    "比例付与の対象は「週の所定労働時間が30時間未満」かつ「週4日以下（または年間216日以下）」の労働者",
+    "付与には出勤率8割以上の要件がある（本ツールでは判定しない）",
+    "繰越は最大2年で時効消滅（労働基準法115条）",
+    "6年6か月以上はそれ以降毎年同じ日数"
+  ]
+}

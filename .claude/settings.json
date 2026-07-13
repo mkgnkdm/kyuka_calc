@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(**/*.db)",
+      "Read(**/*.sqlite)",
+      "Read(**/*.sqlite3)",
+      "Read(**/instance/**)",
+      "Read(**/uploads/**)",
+      "Read(**/backup/**)",
+      "Read(**/data/**)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)"
+    ]
+  }
+}
