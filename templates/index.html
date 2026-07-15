@@ -3,68 +3,208 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f2a22">
 <title>年休計算機｜年次有給休暇の付与日数計算</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏖️</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2244%22 fill=%22%23f5efe0%22 stroke=%22%23b23c26%22 stroke-width=%228%22/><text x=%2250%22 y=%2270%22 font-size=%2256%22 text-anchor=%22middle%22 font-family=%22serif%22 fill=%22%23b23c26%22>休</text></svg>">
 <style>
+  /* ==================================================
+     配色・寸法トークン — 「和帳簿に朱印」を基調にした2色設計
+     ink = 墨（本文・見出し） / seal = 朱色（強調・次回付与のはんこ）
+  ================================================== */
   :root {
-    --brand: #1f6f9f;
-    --brand-dark: #185a82;
+    --ink: #232b23;
+    --ink-soft: #5c6857;
+    --ink-faint: #8a9284;
+    --paper: #f5efdf;
+    --paper-alt: #ece1c5;
+    --card: #fffcf3;
+    --line: #ddceac;
+    --line-soft: #e9dfc4;
+    --seal: #b23c26;
+    --seal-dark: #8e2f1d;
+    --seal-tint: #f7e6de;
+    --warn: #a6791f;
+    --warn-bg: #fbf0d6;
+    --warn-line: #e7d093;
+    --error: #a3352a;
+    --error-bg: #faece8;
+    --shadow: 0 1px 2px rgba(35, 30, 15, .06), 0 8px 24px -12px rgba(35, 30, 15, .18);
+    --radius: 10px;
+    --ease-out: cubic-bezier(.16, .8, .3, 1);
+    --font-display: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+    --font-body: "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
   }
+
   * { box-sizing: border-box; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  }
+
   body {
-    font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
-    margin: 0; background: #f4f6f8; color: #222; line-height: 1.6;
+    margin: 0; color: var(--ink); font-family: var(--font-body);
+    font-feature-settings: "palt" 1;
+    line-height: 1.7; font-size: 15.5px;
+    background:
+      radial-gradient(1200px 600px at 12% -10%, rgba(178, 60, 38, .06), transparent 60%),
+      var(--paper);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
   }
-  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 40px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .lead { color: #555; font-size: 14px; margin: 0 0 20px; }
-  .card { background: #fff; border: 1px solid #dde3e8; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
-  label { display: block; font-size: 14px; font-weight: bold; margin: 12px 0 4px; }
-  input[type=date], input[type=number], select {
-    width: 100%; max-width: 320px; padding: 8px 10px; font-size: 16px;
-    border: 1px solid #c5ced6; border-radius: 6px; background: #fff;
+
+  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 64px; }
+
+  @keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .enter { animation: fade-up .5s var(--ease-out) both; }
+
+  /* ==== ヘッダー ==== */
+  .site-head { margin-bottom: 28px; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; letter-spacing: .16em; color: var(--seal);
+    margin: 0 0 10px; font-weight: 600;
   }
-  button {
-    margin-top: 16px; padding: 10px 28px; font-size: 16px; font-weight: bold;
-    background: var(--brand); color: #fff; border: none; border-radius: 6px; cursor: pointer;
+  .kicker::before { content: ""; width: 18px; height: 1px; background: var(--seal); }
+  h1 {
+    font-family: var(--font-display); font-weight: 400;
+    font-size: clamp(28px, 5vw, 38px); letter-spacing: .04em;
+    margin: 0 0 10px; color: var(--ink);
   }
-  button:hover { background: var(--brand-dark); }
-  .error { color: #c0392b; font-weight: bold; margin-top: 10px; }
-  .hint { color: #666; font-size: 12.5px; margin-top: 4px; }
-  .next-grant {
-    background: #e8f3f9; border: 1px solid #cfe3ee; border-radius: 8px;
-    padding: 14px 16px; font-size: 15px; margin-bottom: 14px;
+  h1 .mark { color: var(--seal); margin-right: 2px; }
+  .lead { color: var(--ink-soft); font-size: 14.5px; margin: 0; max-width: 46em; }
+
+  /* ==== カード共通（帳簿の一葉） ==== */
+  .card {
+    position: relative; background: var(--card);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 24px 22px; margin-bottom: 20px; box-shadow: var(--shadow);
   }
-  .next-grant .days { font-size: 26px; font-weight: bold; color: var(--brand); }
-  table { border-collapse: collapse; width: 100%; background: #fff; font-size: 14px; }
-  th, td { border: 1px solid #dde3e8; padding: 7px 10px; text-align: left; }
-  th { background: #eef2f5; }
-  tr.next-row { background: #e8f3f9; font-weight: bold; }
-  .notes { font-size: 12.5px; color: #555; margin-top: 10px; }
-  .notes li { margin-bottom: 4px; }
-  details { margin-top: 14px; font-size: 13px; }
-  summary { cursor: pointer; color: var(--brand); }
+  .card::before {
+    content: ""; position: absolute; top: 0; left: 22px; right: 22px; height: 1px;
+    background-image: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px);
+  }
+
+  /* ==== 下書き警告（付箋風） ==== */
   .draft-warn {
-    background: #fff8e1; border: 1px solid #f0e0a0; color: #7a5c00;
-    border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px;
+    background: var(--warn-bg); border: 1px solid var(--warn-line); color: #6b4e10;
+    border-left: 4px solid var(--warn);
+    border-radius: 6px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px;
   }
+  .draft-warn strong { color: #5a4008; }
+
+  /* ==== フォーム ==== */
+  label { display: block; font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 18px 0 6px; }
+  label:first-of-type { margin-top: 0; }
+
+  input[type=date], input[type=number], select {
+    width: 100%; max-width: 340px; padding: 10px 12px; font-size: 16px;
+    font-family: var(--font-body); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 7px; background: var(--card);
+    transition: border-color .15s var(--ease-out), box-shadow .15s var(--ease-out);
+  }
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='18' height='18'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%23232b23' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; padding-right: 34px;
+  }
+  input:hover, select:hover { border-color: var(--ink-faint); }
+  input:focus, select:focus, button:focus-visible, summary:focus-visible {
+    outline: none; border-color: var(--seal);
+    box-shadow: 0 0 0 3px var(--seal-tint);
+  }
+
+  .hint { color: var(--ink-soft); font-size: 12.5px; margin-top: 6px; max-width: 40em; }
+
+  #base-date-fields {
+    margin-top: 4px; padding: 14px 14px 4px; border-left: 2px dashed var(--line);
+  }
+
+  button {
+    margin-top: 22px; padding: 11px 30px; font-size: 15.5px; font-weight: 700;
+    font-family: var(--font-body); letter-spacing: .04em;
+    background: var(--seal); color: #fff8f0; border: none; border-radius: 7px; cursor: pointer;
+    box-shadow: 0 1px 0 rgba(0,0,0,.08), 0 6px 16px -6px rgba(178,60,38,.55);
+    transition: background-color .15s var(--ease-out), transform .12s var(--ease-out), box-shadow .15s var(--ease-out);
+  }
+  button:hover { background: var(--seal-dark); }
+  button:active { transform: translateY(1px) scale(.99); box-shadow: 0 1px 0 rgba(0,0,0,.08); }
+
+  .error {
+    color: var(--error); background: var(--error-bg); border-left: 3px solid var(--error);
+    font-weight: 700; font-size: 13.5px; margin-top: 14px; padding: 9px 12px; border-radius: 4px;
+  }
+
+  /* ==== 結果: 次回付与の朱印 ==== */
+  .next-grant {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    background: var(--seal-tint); border: 1px solid #edcfc2; border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 16px;
+  }
+  .stamp {
+    flex: 0 0 auto; width: 76px; height: 76px; border-radius: 50%;
+    border: 2.5px solid var(--seal); color: var(--seal);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 26px; font-weight: 700;
+    transform: rotate(-6deg); background: #fffaf6;
+  }
+  .next-grant-body { flex: 1 1 220px; }
+  .next-grant-label { margin: 0 0 4px; font-size: 12.5px; color: var(--seal-dark); font-weight: 700; letter-spacing: .04em; }
+  .next-grant-date { margin: 0 0 8px; font-size: 21px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    display: inline-block; background: var(--paper-alt); border: 1px solid var(--line);
+    border-radius: 20px; padding: 2px 12px; font-size: 12px; color: var(--ink-soft);
+  }
+  .badge-accent { background: var(--seal-tint); border-color: #edcfc2; color: var(--seal-dark); }
+
+  /* ==== 表（帳簿の罫線） ==== */
+  table { border-collapse: collapse; width: 100%; background: transparent; font-size: 13.5px; }
+  th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+  th {
+    background: var(--paper-alt); color: var(--ink-soft); font-weight: 700; font-size: 12px;
+    letter-spacing: .03em; border-bottom: 1px solid var(--line);
+  }
+  tr.next-row { background: var(--seal-tint); box-shadow: inset 3px 0 0 var(--seal); font-weight: 700; }
+  tbody tr:hover { background: var(--paper-alt); }
+  tr.next-row:hover { background: var(--seal-tint); }
+
+  .notes { font-size: 12.5px; color: var(--ink-soft); margin-top: 14px; padding-left: 18px; }
+  .notes li { margin-bottom: 6px; }
+  .notes li::marker { color: var(--seal); }
+
+  details {
+    margin-top: 16px; font-size: 13px; border-top: 1px dashed var(--line); padding-top: 12px;
+  }
+  summary {
+    cursor: pointer; color: var(--seal-dark); font-weight: 700; list-style: none;
+    display: flex; align-items: center; gap: 6px;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before {
+    content: "▸"; display: inline-block; transition: transform .15s var(--ease-out); color: var(--seal);
+  }
+  details[open] summary::before { transform: rotate(90deg); }
+  details table { margin-top: 12px; }
+
   .disclaimer {
-    font-size: 12.5px; color: #666; border-top: 1px solid #dde3e8;
-    margin-top: 24px; padding-top: 12px;
+    font-size: 12px; color: var(--ink-faint); border-top: 1px dashed var(--line);
+    margin-top: 30px; padding-top: 16px; line-height: 1.8;
   }
-  .badge { display: inline-block; background: #eef2f5; border-radius: 10px; padding: 1px 10px; font-size: 12px; color: #444; }
 </style>
 </head>
 <body>
 <main>
-  <h1>🏖️ 年休計算機</h1>
-  <p class="lead">入社日と週の働き方から、年次有給休暇の付与日と付与日数を計算します。入力内容は保存されません。</p>
+  <header class="site-head enter">
+    <p class="kicker">有給休暇の早見ツール</p>
+    <h1><span class="mark">◆</span>年休計算機</h1>
+    <p class="lead">入社日と週の働き方から、年次有給休暇の付与日と付与日数を計算します。入力内容は保存されません。</p>
+  </header>
 
   {% if rules.status != 'verified' %}
-  <div class="draft-warn">⚠ このツールの法定テーブルは<strong>下書き（専門家の確認前）</strong>です。結果を実務に使わないでください。</div>
+  <div class="draft-warn enter" style="animation-delay:.05s">⚠ このツールの法定テーブルは<strong>下書き（専門家の確認前）</strong>です。結果を実務に使わないでください。</div>
   {% endif %}
 
-  <div class="card">
+  <div class="card enter" style="animation-delay:.1s">
     <form method="get" action="/">
       <label for="hire_date">入社日</label>
       <input type="date" id="hire_date" name="hire_date" value="{{ hire_date_raw }}">
@@ -97,21 +237,18 @@
     </form>
   </div>
 
-  <script>
-    function toggleBaseDate() {
-      var sel = document.getElementById('method');
-      var box = document.getElementById('base-date-fields');
-      box.style.display = (sel.value === 'base_date') ? 'block' : 'none';
-    }
-  </script>
-
   {% if result %}
-  <div class="card">
+  <div class="card enter">
     <div class="next-grant">
-      次回の付与: <strong>{{ result.next.grant_date.isoformat() }}</strong> に
-      <span class="days">{{ result.next.days }}日</span>
-      <span class="badge">勤続{{ result.next.service_label }}</span>
-      {% if result.is_proportional %}<span class="badge">比例付与</span>{% endif %}
+      <div class="stamp" aria-hidden="true">{{ result.next.days }}日</div>
+      <div class="next-grant-body">
+        <p class="next-grant-label">次回の付与</p>
+        <p class="next-grant-date">{{ result.next.grant_date.isoformat() }}</p>
+        <div class="badges">
+          <span class="badge">勤続{{ result.next.service_label }}</span>
+          {% if result.is_proportional %}<span class="badge badge-accent">比例付与</span>{% endif %}
+        </div>
+      </div>
     </div>
 
     {% if result.is_proportional %}
@@ -170,12 +307,19 @@
   </div>
   {% endif %}
 
-  <div class="disclaimer">
+  <div class="disclaimer enter" style="animation-delay:.15s">
     本ツールは法定の原則（入社日起算）による目安を表示するものです。実際の付与は就業規則・
     出勤率・基準日方式の採用などにより異なる場合があります。正確な日数は就業規則をご確認のうえ、
     必要に応じて社会保険労務士等の専門家にご相談ください。本ツールの利用により生じた
     いかなる結果についても、作者は責任を負いません。入力されたデータは保存されません。
   </div>
 </main>
+<script>
+  function toggleBaseDate() {
+    var sel = document.getElementById('method');
+    var box = document.getElementById('base-date-fields');
+    box.style.display = (sel.value === 'base_date') ? 'block' : 'none';
+  }
+</script>
 </body>
 </html>
